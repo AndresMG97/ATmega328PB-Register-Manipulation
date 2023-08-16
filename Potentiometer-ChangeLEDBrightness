@@ -1,0 +1,71 @@
+//define the macros
+#define F_CPU 16000000UL //16Mhz clock from the debug processor
+#define BAUD 9600  //define baud
+#define BAUDRATE ((F_CPU)/(BAUD*16UL)-1) //set baud rate
+
+#include <util/delay.h>
+#include <avr/io.h>
+#include <stdio.h>
+#include <string.h>
+#include <avr/interrupt.h>
+//Red ID 820634055
+// X=0, Y=5, Z=5
+
+short int dutycycle; //declare dutycycle
+
+void Timer0initialization()
+{
+	TCCR0A |= (1<<WGM01); //SET the time mode to CTC
+	TCCR0B |= (1<<CS01) | (1<<CS00); //set the prescaler to 64 since the min is (X+1) = (0+1) = 1ms
+	OCR0A = 249; //Period
+	TIMSK0 |= (1<<OCIE0A); //enable interrupt compare match A. executed if a compare match in timer/counter 0 occurs
+}
+
+void Timer2initialization()
+{
+	TCCR2A |= (1<<WGM21); // set up ctc mode for timer 2
+	TCCR2B |= (1<<CS21) | (1<<CS22); //set precaler to 256 for pwm frequency 1/600Hz= .001666
+	OCR2A = 103; //Compared with counter value TCNT2. match can generate an output compare interrupt
+	TIMSK2 |= (1<<OCIE2A) | (1<<OCIE2B); //enable interrupt compare match A and B
+}
+
+void ADCinitialization()
+{
+	DDRC &= ~ (1<<PINC5); //set the input to C5. My Y=5 5%6=5
+	ADMUX |= (1<<REFS0) | (1<<MUX2) | (1<<MUX0); // (SET VCC REFERENCE)(set adc input channel to 5)
+	ADCSRA |= (1<<ADEN)  | (1<<ADIE) | (1<<ADATE)| (1<<ADPS1) | (1<<ADPS0); //(ADC enable)(ADC auto trigger enable)(ADC interr flag)(division factor 8)
+	ADCSRB |= (1<<ADTS1) | (1<<ADTS0); //Enable Timer/Counter0 compare match A
+}
+
+ISR (TIMER2_COMPA_vect) //timer/counter 2 compare match A
+{
+	PORTB |= (1<<5); //Turn on LED
+}
+
+ISR (TIMER2_COMPB_vect) //timer/counter 2 compare match B
+{
+	if (OCR2B != OCR2A) //add this so it doesn't shut off when OCR2B =  OCR2A
+	{
+	PORTB &= ~ (1<<5); //Turn off LED
+	}
+}
+
+ISR (ADC_vect)
+{
+	uint16_t dutycycle = ADC;
+	OCR2B= OCR2A*(dutycycle/1023.0);
+	PINC ^= (1<<5);
+}
+
+int main(void)
+{
+	DDRB |= (1<<DDB5); //SET the LED (pin B5) to output
+	Timer0initialization();
+	Timer2initialization();
+	ADCinitialization();
+	sei(); //enable global interrupts
+	   while (1) 
+	    {
+			
+	    }
+}
