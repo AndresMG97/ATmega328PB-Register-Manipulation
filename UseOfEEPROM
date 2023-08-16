@@ -1,0 +1,60 @@
+#define F_CPU 16000000UL //16Mhz clock from the debug processor
+#define BAUD 9600  //define baud
+#define BAUDRATE ((F_CPU)/(BAUD*16UL)-1) //set baud rate
+#include <util/delay.h>
+#include <avr/io.h>
+#include <stdio.h>
+#include <string.h>
+#include <avr/interrupt.h>
+#include <avr/eeprom.h>
+
+void initializetimer()
+{
+  TCCR0A |= (1<<WGM01); //SET the time mode to CTC
+  OCR0A = 77; // (1024/16MHz)*256 = .016384 ->  ((.005/.016384)*256)-1 = 77
+  OCR0B = 0;
+  TCCR0B |= (1<<CS02) ; //set the prescaler to 1024 for the 5ms period in the PWM
+}
+
+uint8_t EEMEM NonVdc; //assign variable into the EEPROM address space
+
+
+int main(void)
+{
+    DDRB |= (1<<DDB5); //set the pin b5 to output (LED)
+    initializetimer();
+	uint8_t dutycycle = eeprom_read_byte(&NonVdc); //value added to the nonvolatile variable 
+	OCR0B = OCR0A * (dutycycle / 100.0);
+	if (dutycycle == 100)
+		{
+			eeprom_update_byte(&NonVdc , 0); //call the address and set the duty cycle to 0
+		}
+	if (dutycycle < 100)
+		{
+			eeprom_update_byte(&NonVdc, (dutycycle + 10)); //call the address and +10 to the duty cycle
+		}
+    
+	
+	
+	
+	while (1) 
+    {
+		while (dutycycle != 100) 
+		{
+			
+			PORTB |= (1<<PORTB5);
+			while ((TIFR0 & (1<<OCF0B)) == 0){} //Waits for the overflow
+			TIFR0 |= (1<<OCF0B); //reset overflow flag
+			PORTB &= ~ (1<<PORTB5);
+			while ((TIFR0 & (1<<OCF0A)) == 0){} //Waits for the overflow
+			TIFR0 |= (1<<OCF0A); //reset overflow flag
+			
+		}
+		if(dutycycle == 100)
+		{
+			PORTB &= ~ (1<<PORTB5);//Turn of LED
+		}		
+	}
+		
+    
+}
