@@ -1,0 +1,55 @@
+//define the macros
+#define F_CPU 16000000UL //16Mhz clock from the debug processor
+#define BAUD 9600  //define baud
+#define BAUDRATE ((F_CPU)/(BAUD*16UL)-1) //set baud rate
+
+#include <util/delay.h>
+#include <avr/io.h>
+#include <stdio.h>
+
+
+//function to initialize UART
+void initializeUART(void)
+{
+	UBRR0H = (BAUDRATE>>8); //shift the register by 8 bits
+	UBRR0L = BAUDRATE;      //set baud rate
+	UCSR0B |= (1 << TXEN0 ) | (1 << RXEN0); //enable receiver and transmitter
+	UCSR0C |= (1 << UCSZ00) | (1 << UCSZ01); //8 BIT DATA FORMAT
+	
+	
+}
+
+
+void transmitUART(char RedId) //FUNCTION TO SEND DATA VOID
+{
+	while (! ( UCSR0A & (1<<UDRE0))); //wait while register is free
+	UDR0 = RedId; //load data in the register
+}
+
+//function to receive data
+unsigned char receiveUART(void)
+{
+	while (!(UCSR0A) & (1 << RXC0)); //WAIT WHILE DATA IS BEING RECEIVED
+	return UDR0; //return 8 bit data
+}
+
+int main(void)
+{
+   char RedId[] = "820634055\n";
+   initializeUART(); //initialize the UART to set everything up before the loop starts
+   
+    while (1) 
+    {
+		
+		int i;
+		for (i=0; RedId[i] != '\0' ; i++)
+			{
+				transmitUART(RedId[i]);
+				receiveUART();
+				_delay_ms(250);
+				
+			}
+				
+    }
+
+}
