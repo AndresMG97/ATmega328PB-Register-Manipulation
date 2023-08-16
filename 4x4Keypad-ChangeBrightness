@@ -1,0 +1,100 @@
+//define the macros
+#define F_CPU 16000000UL //16Mhz clock from the debug processor
+#define BAUD 9600  //define baud
+#define BAUDRATE ((F_CPU)/(BAUD*16UL)-1) //set baud rate
+
+#include <util/delay.h>
+#include <avr/io.h>
+#include <stdio.h>
+#include <string.h>
+#include <avr/interrupt.h>
+//Red ID 820634055
+// X=0, Y=5, Z=5
+
+
+int i; //define variable
+int j; //define variable
+int dutycycle;
+	
+
+void initializekeypad()
+{
+	DDRD |= (1<<DDD4) | (1<<DDD5) | (1<<DDD6) | (1<<DDD7); //SET ALL THE D PINS TO OUTPUT (rows)
+	DDRB |= (1<<DDB5); //SET the LED (pin B5) to output
+	DDRB &= ~(1<<DDB0) & ~(1<<DDB1) & ~(1<<DDB2) & ~(1<<DDB3); //Set all the B pins (columns) to inputs
+	PORTD |= (1<<4|1<<5|1<<6|1<<7);// SET ALL ROWS (OUTPUT) TO HIGH
+	PORTB |= (1<<PORTB0) | (1<<PORTB1) | (1<<PORTB2) | (1<<PORTB3);// Set all the inputs (columns) to pull up
+}
+
+void Timer0initialization()
+{
+	TCCR0A |= (1<<WGM01); //SET the time mode to CTC
+	TCCR0B |= (1<<CS01) | (1<<CS00); //set the prescaler to 64 since the min is (X+1) = (0+1) = 1ms
+	OCR0A = 249; //Period
+	TIMSK0 |= (1<<OCIE0A); //enable interrupt compare match A. executed if a compare match in timer/counter 0 occurs
+}
+
+void Timer2initialization()
+{
+	TCCR2A |= (1<<WGM21); // set up ctc mode for timer 2
+	TCCR2B |= (1<<CS21) | (1<<CS22); //set precaler to 256 for pwm frequency 1/600Hz= .001666
+	OCR2A = 103; //Compared with counter value TCNT2. match can generate an output compare interrupt
+	TIMSK2 |= (1<<OCIE2A) | (1<<OCIE2B); //enable interrupt compare match A and B
+}
+
+ISR (TIMER0_COMPA_vect)
+{
+	int KeyPadMatrix[4][4] = {{1,2,3,0}, //declare the 2D 4x4 array for the values that will be used on OCR0A
+	{4,5,6,0},
+	{7,8,9,0},
+	{0,0,0,0}};
+	
+	
+	while(1)
+	{
+		for ( i=4; i<8; i++) //start i at 4 for PIND4 to PIND7
+		{
+			PORTD &= ~(1<<i); //set the row to low and check  it one at a time
+			
+			for ( j=0; j<4; j++) //set j to start at o for B0-B3
+			{
+				
+				if(!(PINB & (1<<j)))//check each column to see which one is pulled low
+				{
+					dutycycle = KeyPadMatrix[i-4][j];//-4 from i because i initiated it at 4 in the for loop
+				}
+				
+			}
+			PORTD |= (1<<4|1<<5|1<<6|1<<7);//since we set the rows to low in the for loop, this resets them all to high
+		}
+	return 0;
+	}
+}
+
+
+ISR (TIMER2_COMPA_vect) //timer/counter 2 compare match A
+{
+	PORTB |= (1<<5); //Turn on LED
+}
+
+ISR (TIMER2_COMPB_vect) //timer/counter 2 compare match B
+{
+	PORTB &= ~ (1<<5); //Turn off LED
+}
+
+
+
+int main(void)
+{
+
+	initializekeypad();
+	Timer0initialization();
+	Timer2initialization();
+	sei(); //enable global interrupts
+
+
+	while (1)
+	{
+		OCR2B = OCR2A*.1* dutycycle; //ocr2a is gonna be ocr2a multiplied by the percentage that come from the keypad function in timer 0 to change the brightness
+	}
+}
