@@ -1,0 +1,60 @@
+#define F_CPU 16000000UL //16Mhz clock from the debug processor
+#include <avr/io.h>
+
+void initialization(void)
+{
+	DDRB |= (1<<DDB5); //set the pin b5 to output (LED)
+	DDRB &= ~ (1<<DDB7); //set the pin b7 to input (BUTTON)
+	PORTB |= (1<<PORTB7); //Set pin b7 up with pull up resistor 
+	TCCR0A |= (1<<WGM01); //SET the time mode to CTC
+	OCR0A = 155;//Set the top value to 155 (((10ms*1024)/(((16000000/1024)^-1)*1024))-1)=155.25
+	OCR0B = 0; //Set bottom value to 0
+	TCCR0B |= (1<<CS02) | (1<<CS00); //Set the prescaler value to 1024 by setting the 02 and 00 bit to 1
+}
+
+void LEDon(void)
+{
+PORTB |= (1<<PORTB5);//TURN ON LED	
+}
+
+void LEDoff(void)
+{
+PORTB &= ~ (1<<PORTB5); //TURN OFF LED	
+}
+
+
+
+int main(void)
+{
+
+initialization(); //initialize the timing for the clock and the different pins before endless loop
+
+    while (1) 
+    {
+		
+		if (!(PINB & (1<<PINB7)) && (OCR0B < 155)) //If the button is pressed and the register is less than 155
+		{
+			LEDon();//Turn on LED
+			while ((TIFR0 & (1<<OCF0B)) == 0){} //Waits for the overflow
+			TIFR0 |= (1<<OCF0B); //reset overflow flag
+			LEDoff(); //Turn off LED
+			while ((TIFR0 & (1<<OCF0A)) == 0){} //Waits for the overflow
+			TIFR0 |= (1<<OCF0A); //reset overflow flag
+			OCR0B++; //adds to register while button is pressed
+		}
+		
+		if ((PINB & (1<<PINB7)) && (OCR0B > 0)) //When the button is not pressed and the register is greater than 0
+		{
+			LEDon();//Turn on LED
+			while ((TIFR0 & (1<<OCF0B)) == 0){} //Waits for the overflow
+			TIFR0 |= (1<<OCF0B); //reset overflow flag
+			LEDoff();//Turn of LED
+			while ((TIFR0 & (1<<OCF0A)) == 0){} //Waits for the overflow
+			TIFR0 |= (1<<OCF0A); //reset overflow flag
+			OCR0B--; //subtracts to register when button is not pressed
+		}
+		
+		
+		
+    }
+}
