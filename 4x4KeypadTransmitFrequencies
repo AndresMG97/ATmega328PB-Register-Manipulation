@@ -1,0 +1,79 @@
+//define the macros
+#define F_CPU 16000000UL //16Mhz clock from the debug processor
+#define BAUD 9600  //define baud
+#define BAUDRATE ((F_CPU)/(BAUD*16UL)-1) //set baud rate
+
+#include <util/delay.h>
+#include <avr/io.h>
+#include <stdio.h>
+#include <string.h>
+
+int i;
+int j;
+
+
+void initializekeypad(void)
+{
+	DDRD |= (1<<DDD4) | (1<<DDD5) | (1<<DDD6) | (1<<DDD7); //SET ALL THE D PINS TO OUTPUT (rows)
+	DDRB |= (1<<DDB4); //SET PIN B4 TO OUTPUT. OUTPUT FOR AUX CONNECTION
+	DDRB &= ~(1<<DDB0) & ~(1<<DDB1) & ~(1<<DDB2) & ~(1<<DDB3); //Set all the B pins (columns) to inputs
+	PORTD |= (1<<4|1<<5|1<<6|1<<7);// SET ALL ROWS (OUTPUT) TO HIGH
+	PORTB |= (1<<PORTB0) | (1<<PORTB1) | (1<<PORTB2) | (1<<PORTB3);// Set all the inputs (columns) to pull up
+}
+
+void timerinitialization()
+{
+	TCCR0A |= (1<<WGM01); //SET the time mode to CTC
+	TCCR0B |= (1<<CS02); //set prescaler to 256. Timer needed for calculated Ton values
+}
+
+void transmitUART(int FrequencyMatrix)
+{
+	TCCR0A |= (1<<WGM01); //SET the time mode to CTC
+	OCR0A = FrequencyMatrix; //the period will be the value that is pulled from the matrix
+	OCR0B = FrequencyMatrix * .5; //duty cycle is half of the matrix value
+	TCCR0B |= (1<<CS02); //set prescaler to 256. Timer needed for calculated Ton values
+	
+	PORTB |= (1<<4);
+	while ((TIFR0 & (1<<OCF0B)) == 0){} //Waits for the overflow
+	TIFR0 |= (1<<OCF0B); //reset overflow flag
+	PORTB &= ~ (1<<4);
+	while ((TIFR0 & (1<<OCF0A)) == 0){} //Waits for the overflow
+	TIFR0 |= (1<<OCF0A); //reset overflow flag
+}
+
+
+
+int main(void)
+{
+	int FrequencyMatrix[4][4] = {{141,133,126,118}, //declare the 2D 4x4 array for the values that will be used on OCR0B
+	{112,105,99,94},
+	{89,83,79,74},
+	{70,66,62,59}};
+
+	timerinitialization();
+	initializekeypad();
+	
+	
+	
+	while (1)
+	{
+		for ( i=4; i<8; i++) //start i at 4 for PIND4 to PIND7
+		{
+			PORTD &= ~(1<<i); //set the row to low and check  it one at a time
+			
+			for ( j=0; j<4; j++) //set j to start at o for B0-B3
+			{
+				
+				if(!(PINB & (1<<j)))//check each column to see which one is pulled low
+				{
+					transmitUART(FrequencyMatrix[i-4][j]);//-4 from i because i initiated it at 4 in the for loop
+					
+				}
+				
+			}
+			PORTD |= (1<<4|1<<5|1<<6|1<<7);//since we set the rows to low in the for loop, this resets them all to high
+		}
+		
+	}
+}
