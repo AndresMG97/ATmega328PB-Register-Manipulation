@@ -1,0 +1,76 @@
+//define the macros
+#define F_CPU 16000000UL //16Mhz clock from the debug processor
+#define BAUD 9600  //define baud
+#define BAUDRATE ((F_CPU)/(BAUD*16UL)-1) //set baud rate
+
+#include <util/delay.h>
+#include <avr/io.h>
+#include <stdio.h>
+#include <string.h>
+
+int i;
+int j;
+
+//function to initialize UART
+void initializeUART(void)
+{
+	UBRR0H = (BAUDRATE>>8); //shift the register by 8 bits
+	UBRR0L = BAUDRATE;      //set baud rate
+	UCSR0B |= (1 << TXEN0 ) | (1 << RXEN0); //enable receiver and transmitter
+	UCSR0C |= (1 << UCSZ00) | (1 << UCSZ01); //8 BIT DATA FORMAT
+	
+	
+}
+
+void transmitUART( char KeyMatrix) //FUNCTION TO SEND DATA VOID
+{
+	while (! ( UCSR0A & (1<<UDRE0))); //wait while register is free
+	UDR0 = KeyMatrix; //load data in the register
+}
+
+//function to receive data
+unsigned char receiveUART(void)
+{
+	while (!(UCSR0A) & (1 << RXC0)); //WAIT WHILE DATA IS BEING RECEIVED
+	return UDR0; //return 8 bit data
+}
+
+
+
+int main(void)
+{
+initializeUART(); //initialize UART before the main loop starts
+
+DDRD |= (1<<DDD4) | (1<<DDD5) | (1<<DDD6) | (1<<DDD7); //SET ALL THE D PINS TO OUTPUT (rows)
+DDRB &= ~(1<<DDB0) & ~(1<<DDB1) & ~(1<<DDB2) & ~(1<<DDB3); //Set all the B pins (columns) to inputs
+PORTD |= (1<<4|1<<5|1<<6|1<<7);// SET ALL ROWS (OUTPUT) TO HIGH
+PORTB |= (1<<PORTB0) | (1<<PORTB1) | (1<<PORTB2) | (1<<PORTB3);// Set all the inputs (columns) to pull up
+
+ char KeyMatrix[4][4] = {{'1','2','3','A'}, //declare the 2D 4x4 array for the keypad characters
+						 {'4','5','6','B'},
+				         {'7','8','9','C'},
+			   	         {'*','0','#','D'}};	 
+						 
+
+
+    while (1) 
+    {
+		for ( i=4; i<8; i++) //start i at 4 for PIND4 to PIND7
+		{
+			PORTD &= ~(1<<i); //set the row to low and check  it one at a time
+		
+			for ( j=0; j<4; j++) //set j to start at o for B0-B3
+			{
+				
+			if(!(PINB & (1<<j)))//check each column to see which one is pulled low
+					{			
+					transmitUART(KeyMatrix[i-4][j]);//-4 from i because i initiated it at 4 in the for loop
+					_delay_ms(250);
+					}
+					
+			}
+			PORTD |= (1<<4|1<<5|1<<6|1<<7);//since we set the rows to low in the for loop, this resets them all to high			
+		}
+    }
+
+}
